@@ -22,11 +22,11 @@ def download_noaa(host, fname, data_dir):
     Argument:
     host:: https://www.ncei.noaa.gov/data/avhrr-land-leaf-area-index-and-fapar/access/
     fname:: name of files. Use get_filenames function """
-    url = host+fname
+    url = host + fname
     path = url.split('/')[-1].split('?')[0]
     r = requests.get(url, stream=True)
     if r.status_code == 200:
-        with open(data_dir+fname, 'wb') as f:
+        with open(data_dir + fname, 'wb') as f:
             f.write(r.content)
 
 
@@ -59,12 +59,12 @@ def clip_noaa_sequential(host, filenames, shp_file, data_dir):
     """
     for fname in filenames:
         download_noaa(host, fname, data_dir)
-        ds = xr.open_dataset(data_dir+fname, decode_coords="all")
+        ds = xr.open_dataset(data_dir + fname, decode_coords="all")
         ds = ds.rio.write_crs(ds.rio.crs)
         geodf = gpd.read_file(shp_file)
         clipped = ds.rio.clip(geodf.geometry)
-        clipped.to_netcdf(data_dir+"clipped_"+fname)
-        os.remove(data_dir+fname)
+        clipped.to_netcdf(data_dir + "clipped_" + fname)
+        os.remove(data_dir + fname)
 
 
 @dask.delayed
@@ -81,18 +81,20 @@ def clip_noaa_parallel(fname, host, shp_file, data_dir, product):
 
     download_noaa(host, fname, data_dir)
     if (product == "ndvi") | (product == "reflectance"):
-        ds = xr.open_dataset(
-            data_dir+fname, decode_coords="all", drop_variables="TIMEOFDAY")
+        ds = xr.open_dataset(data_dir + fname,
+                             decode_coords="all",
+                             drop_variables="TIMEOFDAY")
     elif (product == "lai"):
-        ds = xr.open_dataset(data_dir+fname, decode_coords="all")
+        ds = xr.open_dataset(data_dir + fname, decode_coords="all")
 
     ds = ds.rio.write_crs(ds.rio.crs)
     # Readin the ABoVE reagion shp file
     geodf = gpd.read_file(shp_file)
     # Clip data using rioxarray
     clipped = ds.rio.clip(geodf.geometry)
-    clipped.to_netcdf(data_dir+"clipped_"+fname)
-    os.remove(data_dir+fname)
+    clipped.to_netcdf(data_dir + "clipped_" + fname)
+    os.remove(data_dir + fname)
+
 
 # ------------------------------------
 #    Decimal to binary for QA
@@ -118,6 +120,8 @@ def dec2bin(xrd, n):
 
 def beep():
     return chime.warning()
+
+
 # ------------------------------------
 
 
@@ -126,7 +130,7 @@ def beep():
 # -----------------------------------
 def f_mask(x, var):
 
-    if var == "lai":
+    if var == "LAI":
         x = '{0:09}'.format(int(x))
         x = str(x)
         if len(x) == 9:
@@ -134,17 +138,15 @@ def f_mask(x, var):
                 return np.nan
             else:
                 return ((x[0:2] == '00') & (x[2] == '1') & (x[7:9] == '00'))
-    if var == "ndvi":
+    if var == "NDVI":
         x = '{0:016}'.format(int(x))
         x = str(x)
         if len(x) == 16:
             if x == "0000000000000000":
                 return np.nan
             else:
-                return ((x[1] == '0') & (x[2] == '0') & (x[3] == '0') & (x[4] == '0')
-                & (x[5] == '0') & (x[6] == '0') & (x[7] == '0') & (x[8] == '0') & (x[9] == '0')
-                & (x[10] == '0') & (x[11] == '0') & (x[12] == '0') & (x[13] == '0') & (x[14] == '0')
-                & (x[15] == '0'))
+                return ((x[2] == '0') & (x[6] == '0') & (x[7] == '0') &
+                        (x[9] == '0')&(x[13] == '0') & (x[14] == '0'))
 
 
 def avhrr_mask(xrd, var, dask):
@@ -152,32 +154,34 @@ def avhrr_mask(xrd, var, dask):
     # (i.e. not .compute() or .load())
     if dask == "allowed":
         return xr.apply_ufunc(
-        f_mask,
-        xrd,
-        var,
-        dask="parallelized",
-        output_dtypes=float,
-        vectorize=True,
-    )
+            f_mask,
+            xrd,
+            var,
+            dask="parallelized",
+            output_dtypes=float,
+            vectorize=True,
+        )
     elif dask == "not_allowed":
         return xr.apply_ufunc(
-        f_mask,
-        xrd,
-        var,
-        vectorize=True,
-    )
+            f_mask,
+            xrd,
+            var,
+            vectorize=True,
+        )
 
 
 def growing_season(da):
-	# Taking the mean of the LST data from April to October. Selection of the month is just beacuse
-	# initital investigation of the Landsat NDVI data showed the satrt and end of the season.
+    # Taking the mean of the LST data from April to October. Selection of the month is just beacuse
+    # initital investigation of the Landsat NDVI data showed the satrt and end of the season.
 
-	da_grouped = da.where(
-		da.time.dt.month.isin([4, 5, 6, 7, 8, 9, 10])
-	)  # This line set other months than numbered to nan
-	da_growing = da_grouped.groupby("time.year").mean().rename({"year":"time"})
+    da_grouped = da.where(da.time.dt.month.isin(
+        [4, 5, 6, 7, 8, 9,
+         10]))  # This line set other months than numbered to nan
+    da_growing = da_grouped.groupby("time.year").mean().rename(
+        {"year": "time"})
     # da_growing = da_growing.rename({"year":"time"})
-	return da_growing
+    return da_growing
+
 
 def xarray_Linear_trend(xarr, var_unit):
     # getting shapes
@@ -234,11 +238,11 @@ def xarray_Linear_trend(xarr, var_unit):
     # join these variables
     xarr_out = xarr_slope.to_dataset(name='slope')
     xarr_out['pval'] = xarr_p
-    
 
     return xarr_out
 
+
 def isfinite(x):
     # Find non-nan values
-    func = lambda x:np.isfinite(x)
-    return xr.apply_ufunc(func,x)
+    func = lambda x: np.isfinite(x)
+    return xr.apply_ufunc(func, x)
