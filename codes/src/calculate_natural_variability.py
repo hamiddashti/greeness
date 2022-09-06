@@ -26,9 +26,12 @@ dist_m = dist_matrix(WINSIZE, WINSIZE)
 percent_cover = xr.open_dataarray(
     dir + "data/processed_data/percent_cover/percent_cover.nc"
 )
-lai_ts = xr.open_dataarray(
+var_ts = xr.open_dataarray(
     dir + "data/processed_data/noaa_nc/lai_fapar/resampled/lai_growing.nc"
 )
+
+
+
 
 
 percent_cover = percent_cover.rename({"x": "lon", "y": "lat"})

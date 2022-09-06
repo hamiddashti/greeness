@@ -20,7 +20,7 @@ sample = sample.where(sample != -9999.0)
 sample.rio.write_nodata(np.nan, inplace=True)
 sample.rio.to_raster(dir + "data/raw_data/landcover/sample.tif")
 
-years = pd.date_range(start="1984", end="2014", freq="Y").year
+years = pd.date_range(start="1984", end="2015", freq="Y").year
 fname_all = []
 
 for year in years:
@@ -32,7 +32,7 @@ for year in years:
         dir + "data/raw_data/landcover/mosaic/mosaic_reproject_" + str(year) + ".tif"
     )
 
-    print("Mosaicing year:" + str(year))
+    print("Calculating percent cover of year:" + str(year))
     fname = "data/raw_data/landcover/mosaic/mosaic_reproject_" + str(year) + ".tif"
     ds = gdal.Open(dir + fname)
     band = ds.GetRasterBand(1)
@@ -120,9 +120,18 @@ for year in years:
         # break
     print(fname_all)
 
+years = pd.date_range(start="1984", end="2015", freq="Y").year
+fname_all = [
+    dir + "data/processed_data/percent_cover/" + str(year) + "_percent_cover.tif"
+    for year in years
+]
+
+
 chunks = {"y": 448, "x": 1348}
 da = xr.concat([xr.open_rasterio(f, chunks=chunks) for f in fname_all], dim=years)
-da = da.rename({"concat_dim": "year", "x": "lon", "y": "lat"})
-da_2003_2014 = da.loc[2003:2014]
-da.to_netcdf(dir + "data/processed_data/percent_cover/LULC_10.nc")
-da_2003_2014.to_netcdf(dir + "data/processed_data/percent_cover/LULC_10_2003_2014.nc")
+da = da.rename({"concat_dim": "time", "x": "lon", "y": "lat"})
+da.attrs["bands"] = (
+    "1:Evegreen forest; 2:Deciduous Forest; 3:Shrubland; 4:Herbaceous; 5:Sparsely Vegetated"
+    "6:Barren; 7:Fen; 8:Bog; 9:Shallows/Littoral; 10:water"
+)
+da.to_netcdf(dir + "data/processed_data/percent_cover/percent_cover.nc")
