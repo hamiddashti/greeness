@@ -14,6 +14,8 @@ import chime
 from scipy import stats
 import numpy as np
 import pandas as pd
+from sklearn.linear_model import LinearRegression, TheilSenRegressor
+import pymannkendall as mk
 
 
 def download_noaa(host, fname, data_dir):
@@ -276,7 +278,73 @@ def weighted_season_resmaple(ds):
     return season_resample
 
 
-# --------------------------------------------------------------------------------
+# ----------------------------------------------------------------
+
+#                       Estimate trend
+
+# ----------------------------------------------------------------
+# def _theilsen(y):
+#     x = np.arange(len(y)).reshape(-1, 1)
+#     if np.isnan(y).all():
+#         return np.nan
+
+#     I = np.where(np.isnan(y))
+#     if len(I[0]) > 1:
+#         return np.nan
+
+#     yy = np.delete(y, I)
+#     x = np.arange(len(yy)).reshape(-1, 1)
+#     reg = TheilSenRegressor(random_state=0).fit(x, yy)
+#     return reg.coef_
+
+
+# def est_trend(xrd, method, **kwargs):
+#     if method == "theilsen":
+#         return xr.apply_ufunc(
+#             _theilsen,
+#             xrd,
+#             input_core_dims=[["time"]],
+#             # dask="allowed",
+#             # output_dtypes=float,
+#             vectorize=True,
+#         )
+
+
+def _theilsen_mannkendall(y):
+    x = np.arange(len(y)).reshape(-1, 1)
+    if np.isnan(y).all():
+        return np.nan, np.nan, np.nan
+
+    I = np.where(np.isnan(y))
+    if len(I[0]) > 1:
+        return np.nan, np.nan, np.nan
+
+    yy = np.delete(y, I)
+    x = np.arange(len(yy)).reshape(-1, 1)
+    result = mk.original_test(yy)
+    # reg = TheilSenRegressor(random_state=0).fit(x, yy)
+    # return result.slope, result.p, result.h
+    # return result.slope
+    return float(result.slope), float(result.p), float(result.h)
+
+
+def est_trend(xrd, method, **kwargs):
+    if method == "theilsen":
+        cof, p, h = xr.apply_ufunc(
+            _theilsen_mannkendall,
+            xrd,
+            input_core_dims=[["time"]],
+            output_core_dims=[[], [], []],
+            # dask="parallelized",
+            # output_dtypes=float,
+            vectorize=True,
+        )
+        ds_out = cof.to_dataset()
+        ds_out["p_value"] = p
+        ds_out["h"] = h
+        return ds_out
+
+
 def xarray_Linear_trend(xarr, var_unit):
     # getting shapes
 
