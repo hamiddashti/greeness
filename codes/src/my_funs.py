@@ -329,6 +329,7 @@ def _theilsen_mannkendall(y):
 
 
 def est_trend(xrd, method, **kwargs):
+    xrd = xrd.rename("trend")
     if method == "theilsen":
         cof, p, h = xr.apply_ufunc(
             _theilsen_mannkendall,
@@ -342,6 +343,14 @@ def est_trend(xrd, method, **kwargs):
         ds_out = cof.to_dataset()
         ds_out["p_value"] = p
         ds_out["h"] = h
+        ds_out = ds_out.assign_attrs(
+            {
+                "trend": "The estimated trend using Theilsen method",
+                "p": "Estimated p_value using Mann-Kendall",
+                "h": "1 if trend is significant (p<0.05), 0 otherwise",
+            }
+        )
+
         return ds_out
 
 
