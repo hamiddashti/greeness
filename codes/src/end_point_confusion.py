@@ -11,6 +11,12 @@ from rasterio.mask import mask
 import dask
 from dask.diagnostics import ProgressBar
 import geopandas as gpd
+from datetime import datetime
+
+
+def add_time_dim(xda):
+    xda = xda.expand_dims(time=[datetime.now()])
+    return xda
 
 
 def mymask(tif, shp):
@@ -94,7 +100,7 @@ shp_cart = shp_cart.to_crs({"init": "epsg:3857"})
 shp_cart.crs
 area = shp_cart["geometry"].area / 10**6
 
-for year in np.arange(1984, 2013):
+for year in np.arange(2013, 2014):
     print(year + 1)
 
     luc1 = rasterio.open(luc_dir + "mosaic_reproject_" + str(year) + ".tif")
@@ -175,11 +181,13 @@ for year in np.arange(1984, 2013):
     )
 
     ds.to_netcdf(
-        out_dir
-        + (
-            "/data/home/hamiddashti/hamid/"
-            "nasa_above/greeness/data/processed_data/confusion_tables/ct_"
-            + str(year + 1)
-            + ".nc"
-        )
+        (dir + "/data/processed_data/confusion_tables/ct_" + str(year + 1) + ".nc")
     )
+
+# Collect all dataset in one along time dimension
+data = xr.open_mfdataset(
+    dir + "/data/processed_data/confusion_tables/ct_*", preprocess=add_time_dim
+)
+t = pd.date_range(start="1985", end="2015", periods=None, freq="A-DEC")
+data["time"] = t.year
+data.to_netcdf(dir + "/data/processed_data/confusion_tables/ct_all_years.nc")
