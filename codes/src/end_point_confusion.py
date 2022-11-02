@@ -100,7 +100,7 @@ shp_cart = shp_cart.to_crs({"init": "epsg:3857"})
 shp_cart.crs
 area = shp_cart["geometry"].area / 10**6
 
-for year in np.arange(2013, 2014):
+for year in np.arange(1995, 1996):
     print(year + 1)
 
     luc1 = rasterio.open(luc_dir + "mosaic_reproject_" + str(year) + ".tif")
