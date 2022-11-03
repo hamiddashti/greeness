@@ -186,7 +186,7 @@ def growing_season(da):
     # initital investigation of the Landsat NDVI data showed the satrt and end of the season.
 
     da_grouped = da.where(
-        da.time.dt.month.isin([4, 5, 6, 7, 8, 9, 10])
+        da.time.dt.month.isin([5, 6, 7, 8, 9, 10])
     )  # This line set other months than numbered to nan
     da_growing = da_grouped.groupby("time.year").mean().rename({"year": "time"})
     # da_growing = da_growing.rename({"year":"time"})
