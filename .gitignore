@@ -83,6 +83,10 @@ target/
 /working/
 /test/
 /manuscript1/
+/codes/data/
+/codes/manuscript/
+/codes/outputs/
+
 # Mac OS-specific storage files
 .DS_Store
 
