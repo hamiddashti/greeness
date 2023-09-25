@@ -1,4 +1,5 @@
-library(Rbeast)
+library(Rbeas
+t)
 library(ncdf4) # package for netcdf manipulation
 library(raster) # package for raster manipulation
 library(rgdal) # package for geospatial analysis

@@ -21,9 +21,10 @@ def add_time_dim(xda):
 
 def mymask(tif, shp):
     # To mask landsat LUC pixels included in each MODIS pixel
-    out_image, out_transform = rasterio.mask.mask(
-        tif, shp, all_touched=False, crop=True
-    )
+    out_image, out_transform = rasterio.mask.mask(tif,
+                                                  shp,
+                                                  all_touched=False,
+                                                  crop=True)
     # out_meta = tif.meta
     # return out_image,out_meta,out_transform
     return out_image, out_transform
@@ -84,8 +85,7 @@ luc_dir = dir + "data/raw_data/landcover/mosaic/"
 out_dir = dir + "data/processed_data/confusion_tables/"
 
 changed_pixels_mask = xr.open_dataarray(
-    dir + "data/processed_data/noaa_nc/lai_fapar/trend/changed_pixels.nc"
-)
+    dir + "data/processed_data/noaa_nc/lai_fapar/trend/included_pixels.nc")
 
 shape_file = dir + "data/shp_files/python_grid.shp"
 
@@ -100,94 +100,83 @@ shp_cart = shp_cart.to_crs({"init": "epsg:3857"})
 shp_cart.crs
 area = shp_cart["geometry"].area / 10**6
 
-for year in np.arange(1995, 1996):
-    print(year + 1)
+luc1 = rasterio.open(luc_dir + "mosaic_reproject_" + str(1985) + ".tif")
+luc2 = rasterio.open(luc_dir + "mosaic_reproject_" + str(2013) + ".tif")
+changed_pixels_mask_val = (np.ravel(changed_pixels_mask.values, order="F")) * 1
 
-    luc1 = rasterio.open(luc_dir + "mosaic_reproject_" + str(year) + ".tif")
-    luc2 = rasterio.open(luc_dir + "mosaic_reproject_" + str(year + 1) + ".tif")
-    changed_pixels_mask_val = np.ravel(changed_pixels_mask.values, order="F")
+pix_index = []
+final_confusion = []
+final_normal_confusion = []
+final_area = []
+final_percent_1 = []
+final_percent_2 = []
+final_dlcc = []
 
-    pix_index = []
-    final_confusion = []
-    final_normal_confusion = []
-    final_area = []
-    final_percent_1 = []
-    final_percent_2 = []
-    final_dlcc = []
+unique = np.arange(1, NUMBER_OF_CLASSES + 1)
+imap = {key: i for i, key in enumerate(unique)}
 
-    unique = np.arange(1, NUMBER_OF_CLASSES + 1)
-    imap = {key: i for i, key in enumerate(unique)}
-    for i in range(len(shapes)):
-        if changed_pixels_mask_val[i] == 0:
-            continue
-        luc1_masked = mymask(tif=luc1, shp=[shapes[i]])[0]
-        luc2_masked = mymask(tif=luc2, shp=[shapes[i]])[0]
-        try:
-            conf_tmp, conf_normal_tmp = np.asarray(
-                confusionmatrix(luc1_masked.ravel(), luc2_masked.ravel(), unique, imap)
-            )
-        except ZeroDivisionError:
-            # This error mostly happens at the border of the study area,
-            # where after clipping it with shapefile only left values are
-            # 255 and 254 (i.e. nan values)
-            print("ZeroDivisionError")
-            continue
-        count_1 = []
-        count_2 = []
-        for j in np.arange(1, 11):
-            count_1_tmp = (luc1_masked == j).sum()
-            count_1.append(count_1_tmp)
-            count_2_tmp = (luc2_masked == j).sum()
-            count_2.append(count_2_tmp)
-        percent_1 = count_1 / (np.sum(count_1))
-        percent_2 = count_2 / (np.sum(count_2))
-        dlcc_val = percent_1 - percent_2
-        # conf_tmp2 = np.ravel(conf_tmp, order="C")
-        # conf_normal_tmp2 = np.ravel(conf_normal_tmp, order="C")
-        final_confusion.append(conf_tmp)
-        final_normal_confusion.append(conf_normal_tmp)
+for i in range(len(shapes)):
+    if changed_pixels_mask_val[i] == 0:
+        continue
+    luc1_masked = mymask(tif=luc1, shp=[shapes[i]])[0]
+    luc2_masked = mymask(tif=luc2, shp=[shapes[i]])[0]
+    try:
+        conf_tmp, conf_normal_tmp = np.asarray(
+            confusionmatrix(luc1_masked.ravel(), luc2_masked.ravel(), unique,
+                            imap))
+    except ZeroDivisionError:
+        # This error mostly happens at the border of the study area,
+        # where after clipping it with shapefile only left values are
+        # 255 and 254 (i.e. nan values)
+        print("ZeroDivisionError")
+        continue
+    count_1 = []
+    count_2 = []
+    for j in np.arange(1, 11):
+        count_1_tmp = (luc1_masked == j).sum()
+        count_1.append(count_1_tmp)
+        count_2_tmp = (luc2_masked == j).sum()
+        count_2.append(count_2_tmp)
+    percent_1 = count_1 / (np.sum(count_1))
+    percent_2 = count_2 / (np.sum(count_2))
+    dlcc_val = percent_2 - percent_1
+    # conf_tmp2 = np.ravel(conf_tmp, order="C")
+    # conf_normal_tmp2 = np.ravel(conf_normal_tmp, order="C")
+    final_confusion.append(conf_tmp)
+    final_normal_confusion.append(conf_normal_tmp)
 
-        pix_index.append(i)
-        final_area.append(area[i])
-        final_percent_1.append(percent_1)
-        final_percent_2.append(percent_2)
-        final_dlcc.append(dlcc_val)
+    pix_index.append(i)
+    final_area.append(area[i])
+    final_percent_1.append(percent_1)
+    final_percent_2.append(percent_2)
+    final_dlcc.append(dlcc_val)
 
-    pix_index = np.array(pix_index)
-    final_confusion = np.array(final_confusion)
-    final_normal_confusion = np.array(final_normal_confusion)
+pix_index = np.array(pix_index)
+final_confusion = np.array(final_confusion)
+final_normal_confusion = np.array(final_normal_confusion)
 
-    final_area = np.array(final_area)
-    final_percent_1 = np.array(final_percent_1)
-    final_percent_2 = np.array(final_percent_2)
-    final_dlcc = np.array(final_dlcc)
+final_area = np.array(final_area)
+final_percent_1 = np.array(final_percent_1)
+final_percent_2 = np.array(final_percent_2)
+final_dlcc = np.array(final_dlcc)
 
-    ds = xr.Dataset(
-        data_vars={
-            "CONFUSION": (("ID", "LC_t1", "LC_t2"), final_confusion),
-            "NORMALIZED_CONFUSION": (("ID", "LC_t1", "LC_t2"), final_normal_confusion),
-            "DLCC": (("ID", "LC"), final_dlcc),
-            "LC_2003": (("ID", "LC"), final_percent_1),
-            "LC_2013": (("ID", "LC"), final_percent_2),
-            "PIX_INDEX": (("ID"), pix_index),
-            "Area": (("ID"), final_area),
-        },
-        coords={
-            "ID": range(len(final_area)),
-            "LC_t1": range(1, 11),
-            "LC_t2": range(1, 11),
-            "LC": range(1, 11),
-        },
-    )
-
-    ds.to_netcdf(
-        (dir + "/data/processed_data/confusion_tables/ct_" + str(year + 1) + ".nc")
-    )
-
-# Collect all dataset in one along time dimension
-data = xr.open_mfdataset(
-    dir + "/data/processed_data/confusion_tables/ct_*", preprocess=add_time_dim
+ds = xr.Dataset(
+    data_vars={
+        "CONFUSION": (("ID", "LC_t1", "LC_t2"), final_confusion),
+        "NORMALIZED_CONFUSION":
+        (("ID", "LC_t1", "LC_t2"), final_normal_confusion),
+        "DLCC": (("ID", "LC"), final_dlcc),
+        "LC_2003": (("ID", "LC"), final_percent_1),
+        "LC_2013": (("ID", "LC"), final_percent_2),
+        "PIX_INDEX": (("ID"), pix_index),
+        "Area": (("ID"), final_area),
+    },
+    coords={
+        "ID": range(len(final_area)),
+        "LC_t1": range(1, 11),
+        "LC_t2": range(1, 11),
+        "LC": range(1, 11),
+    },
 )
-t = pd.date_range(start="1985", end="2015", periods=None, freq="A-DEC")
-data["time"] = t.year
-data.to_netcdf(dir + "/data/processed_data/confusion_tables/ct_all_years.nc")
+
+ds.to_netcdf((dir + "/data/processed_data/confusion_tables/ct_end_points.nc"))

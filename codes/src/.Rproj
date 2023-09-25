@@ -1,0 +1,6 @@
+# Load the lintr package
+library(lintr)
+
+# Configure lintr with your preferred rules (optional)
+options(lintr.active = TRUE)
+options(lintr.auto_popup = TRUE)  # This option will 

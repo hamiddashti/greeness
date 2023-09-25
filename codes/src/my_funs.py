@@ -48,6 +48,20 @@ def get_filenames(host, name_key):
     return filenames
 
 
+def outliers_index(data, m=3.5):
+    """
+    Returns true if a value is outlier
+
+    :param int data: numpy array
+    :param int m: # of std to include data 
+    """
+    import numpy as np
+    d = np.abs(data - np.nanmedian(data))
+    mdev = np.nanmedian(d)
+    s = d / mdev if mdev else 0.
+    return ~(s < m)
+
+
 def clip_noaa_sequential(host, filenames, shp_file, data_dir):
     """Sequentially (not parallel) downloading and clip data.
     - Note the clip_noaa_parallel function does the same thing
@@ -83,9 +97,9 @@ def clip_noaa_parallel(fname, host, shp_file, data_dir, product):
 
     download_noaa(host, fname, data_dir)
     if (product == "ndvi") | (product == "reflectance"):
-        ds = xr.open_dataset(
-            data_dir + fname, decode_coords="all", drop_variables="TIMEOFDAY"
-        )
+        ds = xr.open_dataset(data_dir + fname,
+                             decode_coords="all",
+                             drop_variables="TIMEOFDAY")
     elif product == "lai":
         ds = xr.open_dataset(data_dir + fname, decode_coords="all")
 
@@ -147,14 +161,12 @@ def f_mask(x, var):
             if x == "0000000000000000":
                 return np.nan
             else:
-                return (
-                    (x[2] == "0")
-                    & (x[6] == "0")
-                    & (x[7] == "0")
-                    & (x[9] == "0")
-                    & (x[13] == "0")
-                    & (x[14] == "0")
-                )
+                return ((x[2] == "0")
+                        & (x[6] == "0")
+                        & (x[7] == "0")
+                        & (x[9] == "0")
+                        & (x[13] == "0")
+                        & (x[14] == "0"))
 
 
 def avhrr_mask(xrd, var, dask):
@@ -185,10 +197,11 @@ def growing_season(da):
     # Taking the mean of the LST data from April to October. Selection of the month is just beacuse
     # initital investigation of the Landsat NDVI data showed the satrt and end of the season.
 
-    da_grouped = da.where(
-        da.time.dt.month.isin([5, 6, 7, 8, 9, 10])
-    )  # This line set other months than numbered to nan
-    da_growing = da_grouped.groupby("time.year").mean().rename({"year": "time"})
+    da_grouped = da.where(da.time.dt.month.isin(
+        [5, 6, 7, 8, 9,
+         10]))  # This line set other months than numbered to nan
+    da_growing = da_grouped.groupby("time.year").mean().rename(
+        {"year": "time"})
     # da_growing = da_growing.rename({"year":"time"})
     return da_growing
 
@@ -208,22 +221,14 @@ ndvi_seasonal_resample = dpm = {
 def leap_year(year, calendar="standard"):
     """Determine if year is a leap year"""
     leap = False
-    if (calendar in ["standard", "gregorian", "proleptic_gregorian", "julian"]) and (
-        year % 4 == 0
-    ):
+    if (calendar in ["standard", "gregorian", "proleptic_gregorian", "julian"
+                     ]) and (year % 4 == 0):
         leap = True
-        if (
-            (calendar == "proleptic_gregorian")
-            and (year % 100 == 0)
-            and (year % 400 != 0)
-        ):
+        if ((calendar == "proleptic_gregorian") and (year % 100 == 0)
+                and (year % 400 != 0)):
             leap = False
-        elif (
-            (calendar in ["standard", "gregorian"])
-            and (year % 100 == 0)
-            and (year % 400 != 0)
-            and (year < 1583)
-        ):
+        elif ((calendar in ["standard", "gregorian"]) and (year % 100 == 0)
+              and (year % 400 != 0) and (year < 1583)):
             leap = False
     return leap
 
@@ -255,11 +260,11 @@ def weighted_season_group(ds):
         name="month_length",
     )
     # Calculate the weights by grouping by 'time.season'
-    weights = (
-        month_length.groupby("time.season") / month_length.groupby("time.season").sum()
-    )
+    weights = (month_length.groupby("time.season") /
+               month_length.groupby("time.season").sum())
     # Calculate the weighted average
-    season_grouped = (ds * weights).groupby("time.season").sum(dim="time", skipna=False)
+    season_grouped = (ds * weights).groupby("time.season").sum(dim="time",
+                                                               skipna=False)
     return season_grouped
 
 
@@ -273,8 +278,7 @@ def weighted_season_resmaple(ds):
         name="month_length",
     )
     season_resample = (ds * month_length).resample(time="QS-DEC").sum() / (
-        month_length.where(ds.notnull()).resample(time="QS-DEC").sum()
-    )
+        month_length.where(ds.notnull()).resample(time="QS-DEC").sum())
     return season_resample
 
 
@@ -296,7 +300,6 @@ def weighted_season_resmaple(ds):
 #     x = np.arange(len(yy)).reshape(-1, 1)
 #     reg = TheilSenRegressor(random_state=0).fit(x, yy)
 #     return reg.coef_
-
 
 # def est_trend(xrd, method, **kwargs):
 #     if method == "theilsen":
@@ -343,13 +346,14 @@ def est_trend(xrd, method, **kwargs):
         ds_out = cof.to_dataset()
         ds_out["p_value"] = p
         ds_out["h"] = h
-        ds_out = ds_out.assign_attrs(
-            {
-                "trend": "The estimated trend using Theilsen method",
-                "p": "Estimated p_value using Mann-Kendall",
-                "h": "1 if trend is significant (p<0.05), 0 otherwise",
-            }
-        )
+        ds_out = ds_out.assign_attrs({
+            "trend":
+            "The estimated trend using Theilsen method",
+            "p":
+            "Estimated p_value using Mann-Kendall",
+            "h":
+            "1 if trend is significant (p<0.05), 0 otherwise",
+        })
 
         return ds_out
 
@@ -384,8 +388,8 @@ def xarray_Linear_trend(xarr, var_unit):
     intercept = ym - (slope * xm)
     # statistics about fit
     df = n - 2
-    r = xys / (xss * yss) ** 0.5
-    t = r * (df / ((1 - r) * (1 + r))) ** 0.5
+    r = xys / (xss * yss)**0.5
+    t = r * (df / ((1 - r) * (1 + r)))**0.5
     p = stats.distributions.t.sf(abs(t), df)
 
     # misclaneous additional functions
@@ -403,7 +407,8 @@ def xarray_Linear_trend(xarr, var_unit):
     # do the same for the p value
     xarr_p = out.copy()
     xarr_p.name = "_Pvalue"
-    xarr_p.attrs["info"] = "If p < 0.05 then the results from 'slope' are significant."
+    xarr_p.attrs[
+        "info"] = "If p < 0.05 then the results from 'slope' are significant."
     xarr_p.values = p.reshape(xarr.shape[1:])
     # join these variables
     xarr_out = xarr_slope.to_dataset(name="slope")
@@ -428,7 +433,7 @@ def dist_matrix(x_size, y_size):
     a2 = np.floor(y_size / 2)
     x_arr, y_arr = np.mgrid[0:x_size, 0:y_size]
     cell = (a1, a2)
-    dists = np.sqrt((x_arr - cell[0]) ** 2 + (y_arr - cell[1]) ** 2)
+    dists = np.sqrt((x_arr - cell[0])**2 + (y_arr - cell[1])**2)
     dists[int(a1), int(a2)] = np.nan
     return dists
 
@@ -441,22 +446,32 @@ def estimate_lcc_trend(percent_cover, trend_total, thresh, winsize):
     diff = (abs(lc_diff) > thresh) * 1
     changed_pixels = (diff == 1).any(dim=["time", "band"])
 
-    trend_roll = (
-        trend_total.rolling({"lat": winsize, "lon": winsize}, center=True)
-        .construct({"lat": "lat_dim", "lon": "lon_dim"})
-        .values
-    )
-    changed_pixels_roll = (
-        changed_pixels.rolling({"lat": winsize, "lon": winsize}, center=True)
-        .construct({"lat": "lat_dim", "lon": "lon_dim"})
-        .values
-    )
-    percent_cover_roll = (
-        percent_cover.rolling({"lat": winsize, "lon": winsize}, center=True)
-        .construct({"lat": "lat_dim", "lon": "lon_dim"})
-        .values
-    )
+    trend_roll = (trend_total.rolling({
+        "lat": winsize,
+        "lon": winsize
+    },
+                                      center=True).construct({
+                                          "lat": "lat_dim",
+                                          "lon": "lon_dim"
+                                      }).values)
+    changed_pixels_roll = (changed_pixels.rolling(
+        {
+            "lat": winsize,
+            "lon": winsize
+        }, center=True).construct({
+            "lat": "lat_dim",
+            "lon": "lon_dim"
+        }).values)
+    percent_cover_roll = (percent_cover.rolling(
+        {
+            "lat": winsize,
+            "lon": winsize
+        }, center=True).construct({
+            "lat": "lat_dim",
+            "lon": "lon_dim"
+        }).values)
 
+    trend_nv_eps = xr.full_like(trend_total, fill_value=np.nan, dtype=float)
     trend_nv = xr.full_like(trend_total, fill_value=np.nan, dtype=float)
     trend_eps = xr.full_like(trend_total, fill_value=np.nan, dtype=float)
 
@@ -479,18 +494,20 @@ def estimate_lcc_trend(percent_cover, trend_total, thresh, winsize):
 
             # print(trend_tmp[win_size_half, win_size_half])
 
-            percent_cover_tmp = np.isfinite(
-                percent_cover_roll[0, :, i, j, :, :]
-            )  # shape (bands=10, winsize, winsize)
+            percent_cover_tmp = np.isfinite(percent_cover_roll[
+                0, :, i, j, :, :])  # shape (bands=10, winsize, winsize)
             center_lc = percent_cover_tmp[:, win_size_half, win_size_half]
 
             trend_tmp_masked = []
             dist_tmp_masked = []
             for m in range(len(lc_stable)):
-                neighbor_lc = percent_cover_tmp[:, lc_stable[m][0], lc_stable[m][1]]
+                neighbor_lc = percent_cover_tmp[:, lc_stable[m][0],
+                                                lc_stable[m][1]]
                 if np.equal(center_lc, neighbor_lc).all():
-                    trend_tmp_masked.append(trend_tmp[lc_stable[m][0], lc_stable[m][1]])
-                    dist_tmp_masked.append(dist_m[lc_stable[m][0], lc_stable[m][1]])
+                    trend_tmp_masked.append(trend_tmp[lc_stable[m][0],
+                                                      lc_stable[m][1]])
+                    dist_tmp_masked.append(dist_m[lc_stable[m][0],
+                                                  lc_stable[m][1]])
             if len(trend_tmp_masked) == 0:
                 continue
 
@@ -498,5 +515,9 @@ def estimate_lcc_trend(percent_cover, trend_total, thresh, winsize):
             dist_tmp_masked = np.array(dist_tmp_masked)
             tmp_var1 = np.nansum(trend_tmp_masked / dist_tmp_masked)
             trend_nv[i, j] = tmp_var1 / (np.nansum(dist_tmp_masked))
-            trend_eps[i, j] = trend_tmp[win_size_half, win_size_half] - trend_nv[i, j]
-    return trend_nv, trend_eps, changed_pixels
+            trend_eps[i, j] = trend_tmp[win_size_half,
+                                        win_size_half] - trend_nv[i, j]
+    trend_nv_eps = trend_nv + trend_eps
+    included_pixels = np.isfinite(trend_nv_eps)
+
+    return trend_nv, trend_eps, trend_nv_eps, included_pixels
